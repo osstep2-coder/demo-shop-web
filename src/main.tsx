@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "sonner";
+// Self-hosted, so the site makes no requests to third-party hosts.
+import "@fontsource-variable/manrope/wght.css";
 import { AuthProvider } from "./auth/AuthContext";
 import { ErrorBoundary } from "./components/states";
 import App from "./App";
@@ -29,7 +31,7 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           <AuthProvider>
             <App />
-            <Toaster position="top-right" richColors closeButton toastOptions={{ style: { fontFamily: "Manrope, sans-serif" } }} />
+            <Toaster position="top-right" richColors closeButton toastOptions={{ style: { fontFamily: "'Manrope Variable', sans-serif" } }} />
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>
