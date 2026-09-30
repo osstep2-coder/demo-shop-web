@@ -18,12 +18,12 @@ export function CartTotals({ cart }: { cart: CartData }) {
   const afterDiscount = cart.itemsTotal - cart.discount;
   const left = FREE_DELIVERY_FROM - afterDiscount;
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="cart-totals">
       <SummaryRow label={`Товары (${cartCount(cart)})`} value={formatMoney(cart.itemsTotal)} />
       {cart.discount > 0 && <SummaryRow label={`Скидка по ${cart.promo?.code}`} value={`−${formatMoney(cart.discount)}`} accent />}
       <SummaryRow label="Доставка" value={cart.deliveryFee ? formatMoney(cart.deliveryFee) : "Бесплатно"} />
       {cart.items.length > 0 && left > 0 && (
-        <div className="rounded-xl bg-sky-50 p-3">
+        <div className="rounded-xl bg-sky-50 p-3" data-testid="cart-free-delivery">
           <div className="flex items-center gap-2 text-xs font-semibold text-sky-800">
             <Truck className="size-4" /> До бесплатной доставки {formatMoney(left)}
           </div>
@@ -60,6 +60,8 @@ function PromoForm({ cart }: { cart: CartData }) {
   if (cart.promo) {
     return (
       <div
+        data-testid="cart-promo"
+        data-state={cart.promo.applied ? "applied" : "not-applicable"}
         className={cn(
           "flex items-center justify-between gap-3 rounded-2xl p-3.5 ring-1",
           cart.promo.applied ? "bg-emerald-50 ring-emerald-200" : "bg-amber-50 ring-amber-200",
@@ -80,6 +82,7 @@ function PromoForm({ cart }: { cart: CartData }) {
           onClick={() => remove.mutate(undefined, { onError: toastError })}
           className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-600"
           aria-label="Убрать промокод"
+          data-testid="cart-promo-remove"
         >
           <X className="size-4" />
         </button>
@@ -88,7 +91,7 @@ function PromoForm({ cart }: { cart: CartData }) {
   }
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} data-testid="cart-promo" data-state={apply.isPending ? "pending" : error ? "error" : "form"}>
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Tag className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
@@ -101,13 +104,18 @@ function PromoForm({ cart }: { cart: CartData }) {
             placeholder="Промокод"
             className="pl-9 font-mono uppercase tracking-wider"
             invalid={Boolean(error)}
+            data-testid="cart-promo-input"
           />
         </div>
-        <Button type="submit" variant="secondary" loading={apply.isPending} disabled={!code.trim()}>
+        <Button type="submit" variant="secondary" loading={apply.isPending} disabled={!code.trim()} data-testid="cart-promo-apply">
           Применить
         </Button>
       </div>
-      {error && <p className="mt-2 text-xs font-medium text-rose-600">{error}</p>}
+      {error && (
+        <p className="mt-2 text-xs font-medium text-rose-600" data-testid="cart-promo-error">
+          {error}
+        </p>
+      )}
     </form>
   );
 }
@@ -120,12 +128,12 @@ export default function Cart() {
   const remove = useCartMutation(cartApi.remove);
   const clear = useCartMutation(cartApi.clear);
 
-  if (isLoading) return <PageLoader />;
-  if (!cart) return <ErrorState error={error} onRetry={refetch} title="Не удалось загрузить корзину" />;
+  if (isLoading) return <PageLoader data-testid="cart-page" data-state="loading" />;
+  if (!cart) return <ErrorState error={error} onRetry={refetch} title="Не удалось загрузить корзину" data-testid="cart-page" data-state="error" />;
 
   if (cart.items.length === 0) {
     return (
-      <Card className="animate-fade-in">
+      <Card className="animate-fade-in" data-testid="cart-page" data-state="empty">
         <EmptyState
           icon={<ShoppingCart />}
           title="Корзина пуста"
@@ -140,12 +148,12 @@ export default function Cart() {
   const blocked = cart.items.some((i) => !i.inStock);
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in" data-testid="cart-page" data-state="ready">
       <PageHeader
         title="Корзина"
         subtitle={`${count} ${pluralize(count, "товар", "товара", "товаров")}`}
         actions={
-          <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} onClick={() => setConfirmClear(true)}>
+          <Button variant="ghost" size="sm" icon={<Trash2 className="size-4" />} onClick={() => setConfirmClear(true)} data-testid="cart-clear-button">
             Очистить корзину
           </Button>
         }
@@ -154,7 +162,7 @@ export default function Cart() {
       <div className="grid-cols-1 [&>*]:min-w-0 grid items-start gap-6 lg:grid-cols-[1fr_380px]">
         <Card className="divide-y divide-slate-100">
           {cart.items.map((item) => (
-            <div key={item.productUuid} className="flex gap-4 p-4 sm:p-5">
+            <div key={item.productUuid} className="flex gap-4 p-4 sm:p-5" data-testid="cart-item" data-state={item.inStock ? "available" : "unavailable"}>
               <Link to={`/product/${item.productUuid}`}>
                 <MiniProduct sku={item.sku} className="size-20 sm:size-24" />
               </Link>
@@ -176,6 +184,7 @@ export default function Cart() {
                   <QuantityStepper
                     size="sm"
                     value={item.quantity}
+                    data-testid="cart-item-quantity"
                     disabled={setQty.isPending}
                     onChange={(qty) => setQty.mutate({ uuid: item.productUuid, qty }, { onError: toastError })}
                   />
@@ -184,6 +193,7 @@ export default function Cart() {
                     onClick={() => remove.mutate(item.productUuid, { onError: toastError })}
                     className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                     aria-label="Удалить"
+                    data-testid="cart-item-remove"
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -205,6 +215,8 @@ export default function Cart() {
               disabled={blocked}
               icon={<ArrowRight className="size-5" />}
               onClick={() => navigate("/checkout")}
+              data-testid="cart-checkout-button"
+              data-state={blocked ? "blocked" : "enabled"}
             >
               Перейти к оформлению
             </Button>
@@ -219,6 +231,8 @@ export default function Cart() {
         title="Очистить корзину?"
         description="Все товары и промокод будут удалены из корзины."
         size="sm"
+        data-testid="cart-clear-modal"
+        data-state="open"
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirmClear(false)}>

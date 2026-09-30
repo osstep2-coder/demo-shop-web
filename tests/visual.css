@@ -1,0 +1,11 @@
+/* Applied only while Playwright takes a screenshot (expect.toHaveScreenshot.stylePath). */
+
+/* Toasts come and go on their own timer. */
+[data-sonner-toaster] {
+  display: none !important;
+}
+
+/* Full-page shots are stitched from the top: a sticky header of a scrolled page would land mid-image. */
+[data-testid="app-header"] {
+  position: static !important;
+}

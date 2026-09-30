@@ -11,7 +11,7 @@ import { formatDateTime, parseApiDate } from "../lib/dates";
 import { formatMoney } from "../lib/money";
 import { ORDER_STATUS } from "../lib/status";
 import { toast, toastError } from "../lib/toast";
-import { Badge, Button, cn } from "./ui";
+import { Badge, Button, cn, type TestAttrs } from "./ui";
 
 export const LOW_STOCK = 3;
 
@@ -115,6 +115,7 @@ export function QuantityStepper({
   max = 99,
   disabled,
   size = "md",
+  ...test
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -122,10 +123,10 @@ export function QuantityStepper({
   max?: number;
   disabled?: boolean;
   size?: "sm" | "md";
-}) {
+} & TestAttrs) {
   const h = size === "sm" ? "h-9" : "h-11";
   return (
-    <div className={cn("inline-flex items-center rounded-xl bg-white ring-1 ring-slate-200", h)}>
+    <div className={cn("inline-flex items-center rounded-xl bg-white ring-1 ring-slate-200", h)} {...test}>
       <button
         type="button"
         className="flex h-full w-9 items-center justify-center rounded-l-xl text-slate-500 hover:bg-slate-50 disabled:opacity-40"

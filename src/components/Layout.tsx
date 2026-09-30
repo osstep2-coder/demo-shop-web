@@ -151,6 +151,7 @@ function CartButton() {
       to={user ? "/cart" : "/login"}
       className="relative flex size-10 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100"
       aria-label="Корзина"
+      data-testid="header-cart-link"
     >
       <ShoppingCart className="size-5" />
       {count > 0 && (
@@ -168,7 +169,7 @@ const nav = ({ isActive }: { isActive: boolean }) =>
 function Header() {
   const { isStaff } = useAuth();
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur-md" data-testid="app-header">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         <Logo />
         <nav className="hidden items-center gap-1 lg:flex">
@@ -196,7 +197,7 @@ function Header() {
 
 function Footer() {
   return (
-    <footer className="mt-20 border-t border-slate-200 bg-white">
+    <footer className="mt-20 border-t border-slate-200 bg-white" data-testid="app-footer">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-3 sm:px-6">
         <div>
           <Logo />

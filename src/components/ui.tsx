@@ -10,6 +10,9 @@ import {
 import { Link, type LinkProps } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 
+/** Hooks for tests: `data-testid` finds the element, `data-state` tells which state it is in. */
+export type TestAttrs = { "data-testid"?: string; "data-state"?: string };
+
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
@@ -160,8 +163,12 @@ export function Badge({ className, children }: { className?: string; children: R
   return <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset", className)}>{children}</span>;
 }
 
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cn("rounded-2xl bg-white shadow-card ring-1 ring-slate-900/5", className)}>{children}</div>;
+export function Card({ className, children, ...test }: { className?: string; children: ReactNode } & TestAttrs) {
+  return (
+    <div className={cn("rounded-2xl bg-white shadow-card ring-1 ring-slate-900/5", className)} {...test}>
+      {children}
+    </div>
+  );
 }
 
 export function Skeleton({ className }: { className?: string }) {
@@ -172,9 +179,9 @@ export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cn("size-6 animate-spin text-brand-500", className)} />;
 }
 
-export function PageLoader() {
+export function PageLoader(test: TestAttrs) {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center">
+    <div className="flex min-h-[40vh] items-center justify-center" {...test}>
       <Spinner className="size-8" />
     </div>
   );
@@ -186,15 +193,16 @@ export function EmptyState({
   text,
   action,
   className,
+  ...test
 }: {
   icon: ReactNode;
   title: string;
   text?: ReactNode;
   action?: ReactNode;
   className?: string;
-}) {
+} & TestAttrs) {
   return (
-    <div className={cn("flex flex-col items-center px-6 py-14 text-center", className)}>
+    <div className={cn("flex flex-col items-center px-6 py-14 text-center", className)} {...test}>
       <div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 [&>svg]:size-8">{icon}</div>
       <h3 className="text-lg font-bold text-slate-900">{title}</h3>
       {text && <p className="mt-1.5 max-w-sm text-sm text-slate-500">{text}</p>}
@@ -253,6 +261,7 @@ export function Modal({
   children,
   footer,
   size = "md",
+  ...test
 }: {
   open: boolean;
   onClose: () => void;
@@ -261,7 +270,7 @@ export function Modal({
   children?: ReactNode;
   footer?: ReactNode;
   size?: "sm" | "md" | "lg";
-}) {
+} & TestAttrs) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -280,7 +289,7 @@ export function Modal({
       {/* Backdrop click is a mouse shortcut; keyboard users close with Escape or the × button. */}
       {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div className="absolute inset-0 animate-fade-in bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={cn("relative w-full animate-scale-in rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl", width)} role="dialog" aria-modal>
+      <div className={cn("relative w-full animate-scale-in rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl", width)} role="dialog" aria-modal {...test}>
         <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
             <h2 className="text-lg font-bold text-slate-900">{title}</h2>
