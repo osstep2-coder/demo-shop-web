@@ -6,7 +6,7 @@
  *   npm run seed            # skips orders if the demo customer already has some
  *   npm run seed -- --force # adds another set of orders anyway
  *
- * Accounts are listed in SCREENS.md. Unpaid "created" orders are auto-cancelled by the API
+ * Accounts are listed in TEST_DATA.md. Unpaid "created" orders are auto-cancelled by the API
  * after SHOP_PAYMENT_TTL_MINUTES (15 by default), so run this right before recording.
  */
 

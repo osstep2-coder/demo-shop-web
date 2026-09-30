@@ -2,7 +2,7 @@ import type { PaymentToken } from "../api/types";
 
 /**
  * The API takes a payment token instead of card data. Like a real gateway in test mode,
- * the outcome depends on the card number (documented in SCREENS.md, not shown in the UI):
+ * the outcome depends on the card number (documented in TEST_DATA.md, not shown in the UI):
  *   4000 0000 0000 0002 → declined, 4000 0000 0000 9995 → insufficient funds, any other valid card → success.
  */
 const OUTCOMES: Record<string, PaymentToken> = {
