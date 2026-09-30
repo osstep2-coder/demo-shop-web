@@ -76,6 +76,15 @@ jobs:
           uvicorn server.app:app --port 8000 &
           for i in $(seq 1 30); do curl -sf localhost:8000/health && break; sleep 1; done
           curl -sf "localhost:8000/api/v1/products?limit=1" | grep -q '"success":true'
+      - name: Every endpoint documents its response
+        run: |
+          curl -sf localhost:8000/openapi.json | python3 -c '
+          import json, sys
+          spec = json.load(sys.stdin)
+          bad = [f"{m.upper()} {p}" for p, ops in spec["paths"].items() for m, op in ops.items()
+                 if "$ref" not in op["responses"]["200"]["content"]["application/json"]["schema"] or "422" in op["responses"]]
+          sys.exit(f"No response model or stray 422: {bad}" if bad else 0)
+          '
 
   build:
     name: Build

@@ -22,6 +22,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from server import db
+from server.schemas import (
+    CartResponse, DeletedUserResponse, ErrorResponse, HealthResponse, LoginResponse, OrderPageResponse, OrderResponse,
+    ProductPageResponse, ProductResponse, PromoListResponse, PromoResponse, Role, UserDetailsResponse, UserPageResponse,
+    UserResponse, UserStatus,
+)
 
 TOKEN_TTL_SECONDS = 12 * 60 * 60
 DELIVERY_FEE = 29900
@@ -31,8 +36,6 @@ RETURN_PERIOD_DAYS = int(os.environ.get("SHOP_RETURN_PERIOD_DAYS", "14"))
 # Intentional bugs for demos, comma separated. "oversell": parallel checkouts can sell the same last item twice.
 BUGS = {b.strip() for b in os.environ.get("SHOP_BUGS", "").split(",") if b.strip()}
 
-Role = Literal["admin", "manager", "customer"]
-UserStatus = Literal["active", "blocked"]
 PAYMENT_TOKENS = {
     "tok_success": None,
     "tok_declined": (402, "payment.declined", "Card was declined"),
@@ -51,7 +54,14 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Demo Shop API", version="1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Demo Shop API",
+    version="1.0",
+    description="Every response is wrapped in an envelope: `{success, data, meta}` or `{success, error, meta}`. "
+    "Errors list their stable `error.code` values per endpoint.",
+    lifespan=lifespan,
+    responses={500: {"model": ErrorResponse, "description": "`internal`"}},
+)
 
 
 @app.middleware("http")
@@ -89,6 +99,25 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 @app.exception_handler(Exception)
 async def internal_error_handler(request: Request, exc: Exception):
     return fail(request, 500, "internal", "Something went wrong")
+
+
+def errors(*codes: str) -> dict:
+    """OpenAPI docs for error responses from "404 orders.not_found"-style codes, grouped by HTTP status."""
+    by_status: dict[int, list[str]] = {}
+    for item in codes:
+        status, code = item.split(" ", 1)
+        by_status.setdefault(int(status), []).append(f"`{code}`")
+    return {status: {"model": ErrorResponse, "description": ", ".join(c)} for status, c in sorted(by_status.items())}
+
+
+VALIDATION = ("400 validation.failed",)
+AUTH = ("401 auth.missing_token", "401 auth.invalid_token")
+ADMIN = (*AUTH, "403 auth.admin_required")
+STAFF = (*AUTH, "403 auth.staff_required")
+CUSTOMER = (*AUTH, "403 auth.customer_required")
+PROMO_CHECK = ("404 promo.not_found", "400 promo.inactive", "400 promo.expired", "400 promo.usage_limit",
+               "400 promo.min_total_not_reached")
+ORDER_ACTION = ("404 orders.not_found", "409 orders.invalid_transition")
 
 
 # --- dependencies -----------------------------------------------------------
@@ -388,14 +417,22 @@ class RegisterIn(BaseModel):
     lastName: str = Field(min_length=1)
 
 
-@app.post("/api/v1/auth/register", tags=["auth"])
+@app.post(
+    "/api/v1/auth/register", tags=["auth"],
+    response_model=UserResponse,
+    responses=errors(*VALIDATION, "400 users.bad_email", "409 users.email_taken"),
+)
 def register(body: RegisterIn, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
     """Self sign-up. Always creates a customer."""
     user = insert_user(conn, "customer", body.email, body.password, body.firstName, body.lastName)
     return ok(request, user_out(user))
 
 
-@app.post("/api/v1/auth/login", tags=["auth"])
+@app.post(
+    "/api/v1/auth/login", tags=["auth"],
+    response_model=LoginResponse,
+    responses=errors(*VALIDATION, "401 auth.bad_credentials", "403 auth.user_blocked"),
+)
 def login(body: LoginIn, request: Request, conn: sqlite3.Connection = Depends(get_conn)):
     row = conn.execute("select * from users where email = ?", (body.email.lower(),)).fetchone()
     if not row or not db.check_password(body.password, row["password_hash"]):
@@ -408,7 +445,7 @@ def login(body: LoginIn, request: Request, conn: sqlite3.Connection = Depends(ge
     return ok(request, {"token": token, "expiresAt": int(expires_at), "user": user_out(row)})
 
 
-@app.get("/api/v1/auth/me", tags=["auth"])
+@app.get("/api/v1/auth/me", tags=["auth"], response_model=UserResponse, responses=errors(*AUTH))
 def me(request: Request, user: sqlite3.Row = Depends(current_user)):
     return ok(request, user_out(user))
 
@@ -428,13 +465,17 @@ class UserStatusIn(BaseModel):
     status: UserStatus
 
 
-@app.post("/api/v1/users", tags=["users"])
+@app.post(
+    "/api/v1/users", tags=["users"],
+    response_model=UserResponse,
+    responses=errors(*ADMIN, *VALIDATION, "400 users.bad_email", "409 users.email_taken"),
+)
 def create_user(body: UserIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), _=Depends(admin_only)):
     user = insert_user(conn, body.role, body.email, body.password, body.firstName, body.lastName)
     return ok(request, user_out(user))
 
 
-@app.get("/api/v1/users", tags=["users"])
+@app.get("/api/v1/users", tags=["users"], response_model=UserPageResponse, responses=errors(*ADMIN, *VALIDATION))
 def list_users(
     request: Request,
     role: Role | None = None,
@@ -459,14 +500,22 @@ def list_users(
     return ok(request, {"items": [user_out(r) for r in rows], "total": total})
 
 
-@app.get("/api/v1/users/{user_uuid}", tags=["users"])
+@app.get(
+    "/api/v1/users/{user_uuid}", tags=["users"],
+    response_model=UserDetailsResponse,
+    responses=errors(*ADMIN, "404 users.not_found"),
+)
 def get_user(user_uuid: str, request: Request, conn: sqlite3.Connection = Depends(get_conn), _=Depends(admin_only)):
     data = user_out(get_user_or_404(conn, user_uuid))
     data["ordersCount"] = conn.execute("select count(*) from orders where user_uuid = ?", (user_uuid,)).fetchone()[0]
     return ok(request, data)
 
 
-@app.put("/api/v1/users/{user_uuid}/status", tags=["users"])
+@app.put(
+    "/api/v1/users/{user_uuid}/status", tags=["users"],
+    response_model=UserResponse,
+    responses=errors(*ADMIN, *VALIDATION, "404 users.not_found", "400 users.cannot_block_self"),
+)
 def set_user_status(
     user_uuid: str, body: UserStatusIn, request: Request,
     conn: sqlite3.Connection = Depends(get_conn), admin=Depends(admin_only),
@@ -480,7 +529,11 @@ def set_user_status(
     return ok(request, user_out(get_user_or_404(conn, user_uuid)))
 
 
-@app.delete("/api/v1/users/{user_uuid}", tags=["users"])
+@app.delete(
+    "/api/v1/users/{user_uuid}", tags=["users"],
+    response_model=DeletedUserResponse,
+    responses=errors(*ADMIN, "404 users.not_found", "400 users.cannot_delete_self", "409 users.has_orders"),
+)
 def delete_user(user_uuid: str, request: Request, conn: sqlite3.Connection = Depends(get_conn), admin=Depends(admin_only)):
     get_user_or_404(conn, user_uuid)
     if user_uuid == admin["uuid"]:
@@ -515,7 +568,7 @@ class StockIn(BaseModel):
     stock: int = Field(ge=0)
 
 
-@app.get("/api/v1/products", tags=["products"])
+@app.get("/api/v1/products", tags=["products"], response_model=ProductPageResponse, responses=errors(*VALIDATION))
 def list_products(
     request: Request,
     category: str | None = None,
@@ -545,7 +598,11 @@ def list_products(
     return ok(request, {"items": [product_out(r) for r in rows], "total": total})
 
 
-@app.get("/api/v1/products/{product_uuid}", tags=["products"])
+@app.get(
+    "/api/v1/products/{product_uuid}", tags=["products"],
+    response_model=ProductResponse,
+    responses=errors("404 products.not_found"),
+)
 def get_product(product_uuid: str, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(optional_user)):
     product = get_product_or_404(conn, product_uuid)
     if not product["is_active"] and (not user or user["role"] == "customer"):
@@ -553,7 +610,11 @@ def get_product(product_uuid: str, request: Request, conn: sqlite3.Connection = 
     return ok(request, product_out(product))
 
 
-@app.post("/api/v1/products", tags=["products"])
+@app.post(
+    "/api/v1/products", tags=["products"],
+    response_model=ProductResponse,
+    responses=errors(*STAFF, *VALIDATION, "409 products.sku_taken"),
+)
 def create_product(body: ProductIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), _=Depends(staff_only)):
     if conn.execute("select 1 from products where sku = ?", (body.sku,)).fetchone():
         raise ApiError(409, "products.sku_taken", f"Product with sku '{body.sku}' already exists")
@@ -565,7 +626,11 @@ def create_product(body: ProductIn, request: Request, conn: sqlite3.Connection =
     return ok(request, product_out(get_product_or_404(conn, product_uuid)))
 
 
-@app.patch("/api/v1/products/{product_uuid}", tags=["products"])
+@app.patch(
+    "/api/v1/products/{product_uuid}", tags=["products"],
+    response_model=ProductResponse,
+    responses=errors(*STAFF, *VALIDATION, "404 products.not_found"),
+)
 def update_product(
     product_uuid: str, body: ProductPatchIn, request: Request,
     conn: sqlite3.Connection = Depends(get_conn), _=Depends(staff_only),
@@ -579,7 +644,11 @@ def update_product(
     return ok(request, product_out(get_product_or_404(conn, product_uuid)))
 
 
-@app.put("/api/v1/products/{product_uuid}/stock", tags=["products"])
+@app.put(
+    "/api/v1/products/{product_uuid}/stock", tags=["products"],
+    response_model=ProductResponse,
+    responses=errors(*STAFF, *VALIDATION, "404 products.not_found"),
+)
 def set_stock(
     product_uuid: str, body: StockIn, request: Request,
     conn: sqlite3.Connection = Depends(get_conn), _=Depends(staff_only),
@@ -607,7 +676,11 @@ class PromoPatchIn(BaseModel):
     minOrderTotal: int | None = Field(default=None, ge=0)
 
 
-@app.post("/api/v1/promos", tags=["promos"])
+@app.post(
+    "/api/v1/promos", tags=["promos"],
+    response_model=PromoResponse,
+    responses=errors(*ADMIN, *VALIDATION, "400 promo.bad_value", "400 promo.bad_expires_at", "409 promo.code_taken"),
+)
 def create_promo(body: PromoIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), _=Depends(admin_only)):
     code = body.code.upper()
     if body.type == "percent" and body.value > 100:
@@ -626,12 +699,16 @@ def create_promo(body: PromoIn, request: Request, conn: sqlite3.Connection = Dep
     return ok(request, promo_out(conn.execute("select * from promos where code = ?", (code,)).fetchone()))
 
 
-@app.get("/api/v1/promos", tags=["promos"])
+@app.get("/api/v1/promos", tags=["promos"], response_model=PromoListResponse, responses=errors(*ADMIN))
 def list_promos(request: Request, conn: sqlite3.Connection = Depends(get_conn), _=Depends(admin_only)):
     return ok(request, [promo_out(p) for p in conn.execute("select * from promos order by created_at, code")])
 
 
-@app.patch("/api/v1/promos/{code}", tags=["promos"])
+@app.patch(
+    "/api/v1/promos/{code}", tags=["promos"],
+    response_model=PromoResponse,
+    responses=errors(*ADMIN, *VALIDATION, "404 promo.not_found"),
+)
 def update_promo(code: str, body: PromoPatchIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), _=Depends(admin_only)):
     code = code.upper()
     if not conn.execute("select 1 from promos where code = ?", (code,)).fetchone():
@@ -659,12 +736,23 @@ class PromoApplyIn(BaseModel):
     code: str
 
 
-@app.get("/api/v1/cart", tags=["cart"])
+@app.get("/api/v1/cart", tags=["cart"], response_model=CartResponse, responses=errors(*CUSTOMER))
 def get_cart(request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     return ok(request, cart_out(conn, user["uuid"]))
 
 
-@app.post("/api/v1/cart/items", tags=["cart"])
+@app.post(
+    "/api/v1/cart/items", tags=["cart"],
+    response_model=CartResponse,
+    responses=errors(
+        *CUSTOMER,
+        *VALIDATION,
+        "404 products.not_found",
+        "409 products.inactive",
+        "409 products.out_of_stock",
+        "400 cart.quantity_limit",
+    ),
+)
 def add_to_cart(body: CartItemIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     """Adds to the quantity if the product is already in the cart. Stock is not reserved here."""
     product = get_product_or_404(conn, body.productUuid)
@@ -685,7 +773,11 @@ def add_to_cart(body: CartItemIn, request: Request, conn: sqlite3.Connection = D
     return ok(request, cart_out(conn, user["uuid"]))
 
 
-@app.put("/api/v1/cart/items/{product_uuid}", tags=["cart"])
+@app.put(
+    "/api/v1/cart/items/{product_uuid}", tags=["cart"],
+    response_model=CartResponse,
+    responses=errors(*CUSTOMER, *VALIDATION, "404 cart.item_not_found"),
+)
 def set_cart_quantity(
     product_uuid: str, body: CartQuantityIn, request: Request,
     conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only),
@@ -702,20 +794,28 @@ def set_cart_quantity(
     return ok(request, cart_out(conn, user["uuid"]))
 
 
-@app.delete("/api/v1/cart/items/{product_uuid}", tags=["cart"])
+@app.delete(
+    "/api/v1/cart/items/{product_uuid}", tags=["cart"],
+    response_model=CartResponse,
+    responses=errors(*CUSTOMER),
+)
 def remove_from_cart(product_uuid: str, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     conn.execute("delete from cart_items where user_uuid = ? and product_uuid = ?", (user["uuid"], product_uuid))
     return ok(request, cart_out(conn, user["uuid"]))
 
 
-@app.delete("/api/v1/cart", tags=["cart"])
+@app.delete("/api/v1/cart", tags=["cart"], response_model=CartResponse, responses=errors(*CUSTOMER))
 def clear_cart(request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     conn.execute("delete from cart_items where user_uuid = ?", (user["uuid"],))
     conn.execute("delete from carts where user_uuid = ?", (user["uuid"],))
     return ok(request, cart_out(conn, user["uuid"]))
 
 
-@app.put("/api/v1/cart/promo", tags=["cart"])
+@app.put(
+    "/api/v1/cart/promo", tags=["cart"],
+    response_model=CartResponse,
+    responses=errors(*CUSTOMER, *VALIDATION, *PROMO_CHECK),
+)
 def apply_promo(body: PromoApplyIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     """One promo code per cart, a new one replaces the old one."""
     items_total = cart_out(conn, user["uuid"])["itemsTotal"]
@@ -727,7 +827,7 @@ def apply_promo(body: PromoApplyIn, request: Request, conn: sqlite3.Connection =
     return ok(request, cart_out(conn, user["uuid"]))
 
 
-@app.delete("/api/v1/cart/promo", tags=["cart"])
+@app.delete("/api/v1/cart/promo", tags=["cart"], response_model=CartResponse, responses=errors(*CUSTOMER))
 def remove_promo(request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     conn.execute("update carts set promo_code = null where user_uuid = ?", (user["uuid"],))
     return ok(request, cart_out(conn, user["uuid"]))
@@ -748,7 +848,18 @@ class CancelIn(BaseModel):
     reason: str | None = Field(default=None, max_length=300)
 
 
-@app.post("/api/v1/orders", tags=["orders"])
+@app.post(
+    "/api/v1/orders", tags=["orders"],
+    response_model=OrderResponse,
+    responses=errors(
+        *CUSTOMER,
+        *VALIDATION,
+        "400 cart.empty",
+        "409 products.inactive",
+        "409 orders.out_of_stock",
+        *PROMO_CHECK,
+    ),
+)
 def checkout(body: CheckoutIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     """Creates an order from the cart and reserves stock. The order must be paid within the payment deadline."""
     lines = cart_lines(conn, user["uuid"])
@@ -802,7 +913,7 @@ def checkout(body: CheckoutIn, request: Request, conn: sqlite3.Connection = Depe
     return ok(request, order_out(conn, conn.execute("select * from orders where uuid = ?", (order_uuid,)).fetchone()))
 
 
-@app.get("/api/v1/orders", tags=["orders"])
+@app.get("/api/v1/orders", tags=["orders"], response_model=OrderPageResponse, responses=errors(*AUTH, *VALIDATION))
 def list_orders(
     request: Request,
     status: Literal["created", "paid", "shipped", "delivered", "cancelled", "returned"] | None = None,
@@ -828,12 +939,27 @@ def list_orders(
     return ok(request, {"items": [order_out(conn, o, detailed=False) for o in rows], "total": total})
 
 
-@app.get("/api/v1/orders/{order_uuid}", tags=["orders"])
+@app.get(
+    "/api/v1/orders/{order_uuid}", tags=["orders"],
+    response_model=OrderResponse,
+    responses=errors(*AUTH, "404 orders.not_found"),
+)
 def get_order(order_uuid: str, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(current_user)):
     return ok(request, order_out(conn, get_order_for(conn, order_uuid, user)))
 
 
-@app.post("/api/v1/orders/{order_uuid}/pay", tags=["orders"])
+@app.post(
+    "/api/v1/orders/{order_uuid}/pay", tags=["orders"],
+    response_model=OrderResponse,
+    responses=errors(
+        *CUSTOMER,
+        *VALIDATION,
+        *ORDER_ACTION,
+        "400 payment.bad_token",
+        "402 payment.declined",
+        "402 payment.insufficient_funds",
+    ),
+)
 def pay_order(order_uuid: str, body: PayIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     order = get_order_for(conn, order_uuid, user)
     require_status(order, ("created",), "pay")
@@ -852,7 +978,11 @@ def pay_order(order_uuid: str, body: PayIn, request: Request, conn: sqlite3.Conn
     return ok(request, order_out(conn, get_order_for(conn, order_uuid, user)))
 
 
-@app.post("/api/v1/orders/{order_uuid}/cancel", tags=["orders"])
+@app.post(
+    "/api/v1/orders/{order_uuid}/cancel", tags=["orders"],
+    response_model=OrderResponse,
+    responses=errors(*AUTH, *VALIDATION, *ORDER_ACTION),
+)
 def cancel_order(order_uuid: str, body: CancelIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(current_user)):
     """Before shipping only. A paid order is refunded. Stock goes back."""
     order = get_order_for(conn, order_uuid, user)
@@ -864,7 +994,11 @@ def cancel_order(order_uuid: str, body: CancelIn, request: Request, conn: sqlite
     return ok(request, order_out(conn, get_order_for(conn, order_uuid, user)))
 
 
-@app.post("/api/v1/orders/{order_uuid}/ship", tags=["orders"])
+@app.post(
+    "/api/v1/orders/{order_uuid}/ship", tags=["orders"],
+    response_model=OrderResponse,
+    responses=errors(*STAFF, *ORDER_ACTION),
+)
 def ship_order(order_uuid: str, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(staff_only)):
     order = get_order_for(conn, order_uuid, user)
     require_status(order, ("paid",), "ship")
@@ -872,7 +1006,11 @@ def ship_order(order_uuid: str, request: Request, conn: sqlite3.Connection = Dep
     return ok(request, order_out(conn, get_order_for(conn, order_uuid, user)))
 
 
-@app.post("/api/v1/orders/{order_uuid}/deliver", tags=["orders"])
+@app.post(
+    "/api/v1/orders/{order_uuid}/deliver", tags=["orders"],
+    response_model=OrderResponse,
+    responses=errors(*STAFF, *ORDER_ACTION),
+)
 def deliver_order(order_uuid: str, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(staff_only)):
     order = get_order_for(conn, order_uuid, user)
     require_status(order, ("shipped",), "deliver")
@@ -880,7 +1018,11 @@ def deliver_order(order_uuid: str, request: Request, conn: sqlite3.Connection = 
     return ok(request, order_out(conn, get_order_for(conn, order_uuid, user)))
 
 
-@app.post("/api/v1/orders/{order_uuid}/return", tags=["orders"])
+@app.post(
+    "/api/v1/orders/{order_uuid}/return", tags=["orders"],
+    response_model=OrderResponse,
+    responses=errors(*CUSTOMER, *VALIDATION, *ORDER_ACTION, "409 orders.return_period_expired"),
+)
 def return_order(order_uuid: str, body: CancelIn, request: Request, conn: sqlite3.Connection = Depends(get_conn), user=Depends(customer_only)):
     order = get_order_for(conn, order_uuid, user)
     require_status(order, ("delivered",), "return")
@@ -893,9 +1035,25 @@ def return_order(order_uuid: str, body: CancelIn, request: Request, conn: sqlite
     return ok(request, order_out(conn, get_order_for(conn, order_uuid, user)))
 
 
-@app.get("/health", tags=["service"])
+@app.get("/health", tags=["service"], response_model=HealthResponse)
 def health(request: Request):
     return ok(request, {"status": "ok"})
+
+
+def _openapi_without_422() -> dict:
+    """FastAPI documents validation errors as 422 HTTPValidationError; this API answers 400 validation.failed."""
+    if not app.openapi_schema:
+        schema = _default_openapi()
+        for operations in schema["paths"].values():
+            for operation in operations.values():
+                operation["responses"].pop("422", None)
+        for name in ("HTTPValidationError", "ValidationError"):
+            schema["components"]["schemas"].pop(name, None)
+    return app.openapi_schema
+
+
+_default_openapi = app.openapi
+app.openapi = _openapi_without_422
 
 
 # --- website ----------------------------------------------------------------

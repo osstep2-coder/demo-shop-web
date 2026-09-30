@@ -59,7 +59,7 @@ npm run check         # всё вместе, то же, что проверяе�
 | Lint & format    | `oxlint` (ошибки подсвечиваются прямо в diff PR) и `prettier --check`                                   |
 | Typecheck        | `tsc --noEmit`                                                                                          |
 | Dependency audit | `npm audit` по production-зависимостям, падает на high и critical                                       |
-| API smoke        | поднимает API и проверяет `/health` и `/api/v1/products`                                                |
+| API smoke        | поднимает API, проверяет `/health` и `/api/v1/products` и что у каждой ручки в OpenAPI описан ответ     |
 | Build            | `vite build` после lint и typecheck, размер бандла в summary, `dist` сохраняется как артефакт на 7 дней |
 
 Dependabot раз в неделю предлагает обновления npm-пакетов (minor и patch одним PR) и GitHub Actions.
