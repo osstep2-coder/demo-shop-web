@@ -7,3 +7,8 @@ dist/
 api/.venv/
 api/.data/
 __pycache__/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/

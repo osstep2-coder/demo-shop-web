@@ -35,14 +35,20 @@
   },
   "overrides": [
     {
-      "files": ["scripts/**/*.mjs", "vite.config.ts"],
+      "files": ["scripts/**/*.mjs", "vite.config.ts", "playwright.config.ts", "tests/**/*.ts"],
       "env": {
         "node": true
       },
       "rules": {
         "no-console": "off"
       }
+    },
+    {
+      "files": ["tests/**/*.ts"],
+      "rules": {
+        "react-hooks/rules-of-hooks": "off"
+      }
     }
   ],
-  "ignorePatterns": ["dist/**", "node_modules/**"]
+  "ignorePatterns": ["dist/**", "node_modules/**", "tests/api/generated/**", "playwright-report/**", "test-results/**"]
 }

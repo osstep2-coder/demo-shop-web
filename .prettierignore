@@ -2,3 +2,6 @@ dist
 node_modules
 package-lock.json
 api
+tests/api/generated/
+test-results
+playwright-report

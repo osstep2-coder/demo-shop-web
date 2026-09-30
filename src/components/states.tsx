@@ -3,7 +3,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertOctagon, Compass, FileQuestion, Lock, RefreshCw, ServerCrash, WifiOff } from "lucide-react";
 import { ApiError } from "../api/client";
 import { errorText } from "../lib/errors";
-import { Button, ButtonLink, EmptyState, cn } from "./ui";
+import { Button, ButtonLink, EmptyState, cn, type TestAttrs } from "./ui";
 
 function describe(error: unknown): { icon: ReactNode; title: string; text: string } {
   if (error instanceof ApiError) {
@@ -23,18 +23,19 @@ export function ErrorState({
   title,
   compact,
   className,
+  ...test
 }: {
   error: unknown;
   onRetry?: () => void;
   title?: string;
   compact?: boolean;
   className?: string;
-}) {
+} & TestAttrs) {
   const d = describe(error);
   const meta =
     error instanceof ApiError && error.status > 0 ? `${error.status} · ${error.code}${error.correlationId ? ` · ${error.correlationId}` : ""}` : null;
   return (
-    <div className={cn("rounded-3xl bg-white shadow-card ring-1 ring-slate-900/5", className)}>
+    <div className={cn("rounded-3xl bg-white shadow-card ring-1 ring-slate-900/5", className)} {...test}>
       <EmptyState
         className={compact ? "py-8" : undefined}
         icon={<span className="text-rose-600">{d.icon}</span>}
