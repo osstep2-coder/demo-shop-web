@@ -273,10 +273,9 @@ export function Forbidden({ need }: { need: Role[] }) {
       ? "Этот раздел доступен только администратору."
       : "Этот раздел доступен только сотрудникам магазина.";
   return (
-    <div data-state="forbidden" className="py-10">
+    <div className="py-10">
       <div className="mb-2 text-center text-6xl font-extrabold tracking-tighter text-slate-200">403</div>
       <EmptyState
-        state={null}
         icon={<ShieldAlert />}
         title="Нет доступа"
         text={text}

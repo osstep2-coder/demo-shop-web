@@ -151,7 +151,7 @@ export function MyOrders() {
       {isError ? (
         <ErrorState error={error} onRetry={refetch} title="Не удалось загрузить заказы" />
       ) : isLoading ? (
-        <div className="space-y-4" data-state="loading">
+        <div className="space-y-4">
           {Array.from({ length: 3 }, (_, i) => (
             <Skeleton key={i} className="h-32 rounded-2xl" />
           ))}

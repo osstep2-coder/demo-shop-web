@@ -174,7 +174,7 @@ export function Spinner({ className }: { className?: string }) {
 
 export function PageLoader() {
   return (
-    <div data-state="loading" className="flex min-h-[40vh] items-center justify-center">
+    <div className="flex min-h-[40vh] items-center justify-center">
       <Spinner className="size-8" />
     </div>
   );
@@ -186,18 +186,15 @@ export function EmptyState({
   text,
   action,
   className,
-  state = "empty",
 }: {
   icon: ReactNode;
   title: string;
   text?: ReactNode;
   action?: ReactNode;
   className?: string;
-  /** Marker for screenshot tests; nested inside error/404 blocks it is off. */
-  state?: string | null;
 }) {
   return (
-    <div data-state={state ?? undefined} className={cn("flex flex-col items-center px-6 py-14 text-center", className)}>
+    <div className={cn("flex flex-col items-center px-6 py-14 text-center", className)}>
       <div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 [&>svg]:size-8">{icon}</div>
       <h3 className="text-lg font-bold text-slate-900">{title}</h3>
       {text && <p className="mt-1.5 max-w-sm text-sm text-slate-500">{text}</p>}

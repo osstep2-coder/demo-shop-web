@@ -114,7 +114,7 @@ export default function Catalog() {
           {isError ? (
             <ErrorState error={error} onRetry={refetch} title="Не удалось загрузить каталог" />
           ) : isLoading ? (
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3" data-state="loading">
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: PAGE_SIZE }, (_, i) => (
                 <Skeleton key={i} className="h-96 rounded-3xl" />
               ))}

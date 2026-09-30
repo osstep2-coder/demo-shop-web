@@ -34,9 +34,8 @@ export function ErrorState({
   const meta =
     error instanceof ApiError && error.status > 0 ? `${error.status} · ${error.code}${error.correlationId ? ` · ${error.correlationId}` : ""}` : null;
   return (
-    <div data-state="error" className={cn("rounded-3xl bg-white shadow-card ring-1 ring-slate-900/5", className)}>
+    <div className={cn("rounded-3xl bg-white shadow-card ring-1 ring-slate-900/5", className)}>
       <EmptyState
-        state={null}
         className={compact ? "py-8" : undefined}
         icon={<span className="text-rose-600">{d.icon}</span>}
         title={title ?? d.title}
@@ -70,10 +69,9 @@ export function NotFoundState({
   backLabel?: string;
 }) {
   return (
-    <div data-state="not-found" className="flex flex-col items-center py-16 text-center">
+    <div className="flex flex-col items-center py-16 text-center">
       <div className="bg-gradient-to-br from-brand-500 to-sky-400 bg-clip-text text-8xl font-extrabold tracking-tighter text-transparent sm:text-9xl">404</div>
       <EmptyState
-        state={null}
         className="pt-4"
         icon={<Compass />}
         title={title}
@@ -99,10 +97,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div data-state="crash" className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
         <div className="max-w-md rounded-3xl bg-white p-2 shadow-card ring-1 ring-slate-900/5">
           <EmptyState
-            state={null}
             icon={
               <span className="text-rose-600">
                 <AlertOctagon />

@@ -120,7 +120,7 @@ export function AdminOrders() {
       ) : (
         <Card>
           {isLoading ? (
-            <div className="space-y-3 p-5" data-state="loading">
+            <div className="space-y-3 p-5">
               {Array.from({ length: 5 }, (_, i) => (
                 <Skeleton key={i} className="h-10" />
               ))}

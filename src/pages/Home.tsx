@@ -160,7 +160,7 @@ function NewArrivals() {
       {isError ? (
         <ErrorState compact error={error} onRetry={refetch} title="Не удалось загрузить товары" />
       ) : data && data.items.length === 0 ? (
-        <div className="rounded-3xl bg-white p-8 text-center text-sm text-slate-500 shadow-card ring-1 ring-slate-900/5" data-state="empty">
+        <div className="rounded-3xl bg-white p-8 text-center text-sm text-slate-500 shadow-card ring-1 ring-slate-900/5">
           Всё раскупили — скоро привезём новые товары.
         </div>
       ) : (

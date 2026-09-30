@@ -135,9 +135,7 @@ export default function Dashboard() {
             </tbody>
           </Table>
           {recent && !recent.items.length && (
-            <p className="px-5 pb-6 text-sm text-slate-500" data-state="empty">
-              Заказов пока нет — они появятся, когда покупатели что-нибудь закажут.
-            </p>
+            <p className="px-5 pb-6 text-sm text-slate-500">Заказов пока нет — они появятся, когда покупатели что-нибудь закажут.</p>
           )}
         </Card>
 
