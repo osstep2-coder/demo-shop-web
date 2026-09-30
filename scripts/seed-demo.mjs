@@ -66,7 +66,7 @@ async function main() {
   try {
     await fetch(API.replace("/api/v1", "/health"));
   } catch {
-    console.error(`API недоступно по ${API}. Запустите demo-shop-api/run.sh`);
+    console.error(`API недоступно по ${API}. Запустите ./start.sh или api/run.sh`);
     process.exit(1);
   }
 

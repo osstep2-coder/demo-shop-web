@@ -9,6 +9,10 @@ updates:
       # One PR for all minor/patch bumps instead of a dozen small ones.
       minor-and-patch:
         update-types: [minor, patch]
+  - package-ecosystem: pip
+    directory: /api
+    schedule:
+      interval: weekly
   - package-ecosystem: github-actions
     directory: /
     schedule:
