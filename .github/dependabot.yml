@@ -13,3 +13,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # All action bumps (including major) in one PR.
+      github-actions:
+        patterns: ["*"]
